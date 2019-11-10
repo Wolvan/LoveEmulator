@@ -1,14 +1,14 @@
+ENVIRONMENT = "generic"
+
+require(ENVIRONMENT..".conf")
+
 function love.conf(t)
-    t.identity = "LOVE CPU Emulator"   -- The name of the save directory (string)
     t.version = "0.9.2"                -- The LÖVE version this game was made for (string)
     t.console = true                   -- Attach a console (boolean, Windows only)
     t.author = "Wolvan"                -- The author's name
 
 	t.window = t.window or t.screen
-    t.window.title = "CPU Emulator"    -- The window title (string)
     t.window.icon = nil                -- Filepath to an image to use as the window's icon (string)
-    t.window.width = 256               -- The window width (number)
-    t.window.height = 272              -- The window height (number)
     t.window.borderless = false        -- Remove all border visuals from the window (boolean)
     t.window.resizable = false         -- Let the window be user-resizable (boolean)
     t.window.minwidth = 1              -- Minimum window width if the window is resizable (number)
@@ -18,7 +18,6 @@ function love.conf(t)
     t.window.vsync = true              -- Enable vertical sync (boolean)
     t.window.fsaa = 0                  -- The number of samples to use with multi-sampled antialiasing (number)
     t.window.display = 1               -- Index of the monitor to show the window in (number)
-	t.screen = t.screen or t.window
 
     t.modules.audio = true             -- Enable the audio module (boolean)
     t.modules.event = true             -- Enable the event module (boolean)
@@ -34,4 +33,6 @@ function love.conf(t)
     t.modules.timer = true             -- Enable the timer module (boolean)
     t.modules.window = true            -- Enable the window module (boolean)
     t.modules.thread = true            -- Enable the thread module (boolean)
+
+    loveconf(t)
 end
