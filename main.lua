@@ -21,6 +21,7 @@ end
 local testCPU = nil
 function love.load()
     requireFiles()
+    love.graphics.setFont(love.graphics.newFont("resources/pixel.otf"), 16)
 
     testCPU = GenericCPU:new()
     local testBUS = BUS:new(testCPU)
@@ -106,6 +107,11 @@ function love.update(dt)
 end
 
 function love.draw()
+    local function writeLetter(letter, x, y)
+        love.graphics.setColor(255, 0, 0, 255)
+        love.graphics.print(letter, x + 4, y + 1)
+    end
+
     if not testRAM then return end
 
     -- Print the full memory contents to screen
@@ -129,4 +135,26 @@ function love.draw()
     LSB = bit.band(0x0F, stckpnt)
     love.graphics.setColor(0, 255, 0, 255)
     love.graphics.rectangle("line", LSB * 16, math.floor(MSB / 16) * 16, 16, 16)
+
+    -- Print the registers
+    -- A
+    love.graphics.setColor(255, 255, 255, testCPU.__A)
+    love.graphics.rectangle("fill", 0, 256, 16, 16)
+    writeLetter("A", 0, 256)
+    -- X
+    love.graphics.setColor(255, 255, 255, testCPU.__X)
+    love.graphics.rectangle("fill", 16, 256, 16, 16)
+    writeLetter("X", 16, 256)
+    -- Y
+    love.graphics.setColor(255, 255, 255, testCPU.__Y)
+    love.graphics.rectangle("fill", 32, 256, 16, 16)
+    writeLetter("Y", 32, 256)
+
+    -- Print status flags
+    local flags = {"C", "Z", "I", "D", "B", "U", "V", "N"}
+    for index, flag in pairs(flags) do
+        love.graphics.setColor(255, 255, 255, testCPU:GetFlag(flag) * 255)
+        love.graphics.rectangle("fill", 256 - (16 * index), 256, 16, 16)
+        writeLetter(flag, 256 - (16 * index), 256)
+    end
 end
