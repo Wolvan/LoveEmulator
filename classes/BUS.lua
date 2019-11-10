@@ -20,7 +20,7 @@ BUS = {
     addDevice = function(self, device)
         if not device.__type == "BUSDevice" then error("Trying to attach non-BUSDevice to BUS") end
         local requiredBytes = device.addressableBytes
-        if self.__nextFreeAddress + requiredBytes > self.__maxAddress then error(string.format("Address $%X out of range. Too many devices on the BUS?")) end
+        if self.__nextFreeAddress + requiredBytes > self.__maxAddress then error(string.format("Address $%X out of range. Too many devices on the BUS?", self.__nextFreeAddress + requiredBytes)) end
 
         self.__deviceMapping[self.__nextFreeAddress] = device:new()
 
@@ -46,7 +46,7 @@ BUS = {
         end
         o = {
             __cpu = cpu,
-            __maxAddress = cpu.maxAddressableAddress
+            __maxAddress = cpu.maxAddressableAddress + 1
         }
 
         setmetatable(o, self)
