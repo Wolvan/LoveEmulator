@@ -35,10 +35,10 @@ MOS6502 = GenericCPU:new({
     end,
     -- Relative Addressing
     REL = function(self)
-        local addrRel = self:read(self.__pc)
+        local addrRel = bit.band(0x00FF, self:read(self.__pc))
         self.__pc = self.__pc + 1
         if bit.band(addrRel, 0x80) then
-            addrRel = bit.bor(addrRel, 0xFF00)
+            addrRel = -128 + addrRel - 128
         end
         return addrRel, 0
     end,
@@ -108,8 +108,8 @@ MOS6502 = GenericCPU:new({
         local temp = self:read(self.__pc)
         self.__pc = self.__pc + 1
 
-        local lo = self:read(bit.band(t + self.__X, 0x00FF))
-        local hi = self:read(bit.band(t + self.__X + 1), 0x00FF)
+        local lo = self:read(bit.band(temp + self.__X, 0x00FF))
+        local hi = self:read(bit.band(temp + self.__X + 1), 0x00FF)
 
         local addrAbs = bit.bor(bit.lshift(hi, 8), lo)
 
@@ -320,19 +320,19 @@ MOS6502 = GenericCPU:new({
 
     DEC = function(self, fetched, _, address)
         local temp = fetched - 1
-        self:write(address, bit.band(tmp, 0x00FF))
-        self:SetFlag("Z", bit.band(tmp, 0x00FF) == 0x00)
-        self:SetFlag("N", bit.band(tmp, 0x0080))
+        self:write(address, bit.band(temp, 0x00FF))
+        self:SetFlag("Z", bit.band(temp, 0x00FF) == 0x00)
+        self:SetFlag("N", bit.band(temp, 0x0080))
         return 0
     end,
     DEX = function(self)
-        self.__X = self.__X - 1
+        self.__X = bit.band(self.__X - 1, 0x00FF)
         self:SetFlag("Z", self.__X == 0x00)
         self:SetFlag("N", bit.band(self.__X, 0x80))
         return 0
     end,
     DEY = function(self)
-        self.__Y = self.__Y - 1
+        self.__Y = bit.band(self.__Y - 1, 0x00FF)
         self:SetFlag("Z", self.__Y == 0x00)
         self:SetFlag("N", bit.band(self.__Y, 0x80))
         return 0
@@ -347,19 +347,19 @@ MOS6502 = GenericCPU:new({
 
     INC = function(self, fetched, _, address)
         local temp = fetched + 1
-        self:write(address, bit.band(tmp, 0x00FF))
-        self:SetFlag("Z", bit.band(tmp, 0x00FF) == 0x00)
-        self:SetFlag("N", bit.band(tmp, 0x0080))
+        self:write(address, bit.band(temp, 0x00FF))
+        self:SetFlag("Z", bit.band(temp, 0x00FF) == 0x00)
+        self:SetFlag("N", bit.band(temp, 0x0080))
         return 0
     end,
     INX = function(self)
-        self.__X = self.__X + 1
+        self.__X = bit.band(self.__X + 1, 0x00FF)
         self:SetFlag("Z", self.__X == 0x00)
         self:SetFlag("N", bit.band(self.__X, 0x80))
         return 0
     end,
     INY = function(self)
-        self.__Y = self.__Y + 1
+        self.__Y = bit.band(self.__Y + 1, 0x00FF)
         self:SetFlag("Z", self.__Y == 0x00)
         self:SetFlag("N", bit.band(self.__Y, 0x80))
         return 0
@@ -386,13 +386,13 @@ MOS6502 = GenericCPU:new({
         self:SetFlag("N", bit.band(self.__A, 0x80))
         return 1
     end,
-    LDX = function(self)
+    LDX = function(self, fetched)
         self.__X = fetched
         self:SetFlag("Z", self.__X == 0x00)
         self:SetFlag("N", bit.band(self.__X, 0x80))
         return 1
     end,
-    LDY = function(self)
+    LDY = function(self, fetched)
         self.__Y = fetched
         self:SetFlag("Z", self.__Y == 0x00)
         self:SetFlag("N", bit.band(self.__Y, 0x80))
@@ -605,8 +605,12 @@ MOS6502 = GenericCPU:new({
             self.__pc = self.__pc + 1
             self.__timingControlCycles = lookup.cycles
 
+            local fetched = 0x00
+
             local addrRes, addCycleAdd = self[lookup.addrMode](self)
-            if lookup.addrMode ~= "IMP" and lookup.addrMode ~= "REL" then
+            if lookup.addrMode == "IMP" or lookup.addrMode == "REL" then
+                fetched = addrRes
+            else
                 fetched = self:read(addrRes)
             end
             local addCycleOp = self[lookup.opcode](self, fetched, lookup.addrMode, addrRes, opcode)
@@ -747,8 +751,12 @@ MOS6502 = GenericCPU:new({
                 str = str..string.format("($%04X) {IND}", bit.bor(bit.lshift(hi, 8), lo))
             elseif lookup.addrMode == "REL" then
                 local val = self:read(addr, true)
+                local addrRel =  bit.band(0x00FF, val)
                 addr = addr + 1
-                str = str..string.format("$%02X [$%04X] {REL}", val, addr + val)
+                if bit.band(addrRel, 0x80) then
+                    addrRel = -128 + addrRel - 128
+                end
+                str = str..string.format("$%02X [$%04X] {REL}", val, addr + addrRel)
             end
 
             lines[line_addr] = str
