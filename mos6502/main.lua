@@ -22,6 +22,13 @@ end
 local cpu = nil
 local ram = nil
 
+local function writeProgramToMemory(insert, prog)
+    for w in prog:gmatch("%S+") do
+        cpu:write(insert, tonumber(w, 16))
+        insert = insert + 1
+    end
+end
+
 function love.load()
     requireFiles()
     initWindow()
@@ -55,16 +62,63 @@ function love.load()
         BNE loop
         STA $0002
         NOP
-        JMP $8000
+        JMP $8100
         NOP
     ]]--
-    local prog = "A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 6D 01 00 88 D0 FA 8D 02 00 EA 4C 00 80 EA"
+    writeProgramToMemory(0x8000, "A2 0A 8E 00 00 A2 03 8E 01 00 AC 00 00 A9 00 18 6D 01 00 88 D0 FA 8D 02 00 EA 4C 00 81 EA")
 
-    local insert = 0x8000
-    for w in prog:gmatch("%S+") do
-        cpu:write(insert, tonumber(w, 16))
-        insert = insert + 1
-    end
+    --[[
+        *=$8100
+        LDX #0
+        LDY #0
+        loop
+        DEY
+        BNE loop
+        loop2
+        DEX
+        BNE loop2
+        JMP $8200
+    ]]
+    writeProgramToMemory(0x8100, "A2 00 A0 00 88 D0 FD CA D0 FD 4C 00 82")
+    --[[
+        *=$8200
+        LDX #0
+        LDY #0
+        loop
+        INY
+        BNE loop
+        loop2
+        INX
+        BNE loop2
+        JMP $8300
+    ]]
+    writeProgramToMemory(0x8200, "A2 00 A0 00 C8 D0 FD E8 D0 FD 4C 00 83")
+
+    --[[
+        *=$8300
+        LDX #0
+        STX $0010
+        CLZ
+        loop
+        INC $0010
+        BNE loop
+        loop2
+        DEC $0010
+        BNE loop2
+        JMP $8400
+    ]]
+    writeProgramToMemory(0x8300, "A2 00 8E 10 00 EE 10 00 D0 FB CE 10 00 D0 FB 4C 00 84")
+    --[[
+        *=$8400
+        LDX #9
+        DEX
+        BEQ skipjmp
+        JMP $8502
+        skipjmp
+        NOP
+        JMP $8500
+    ]]
+    writeProgramToMemory(0x8400, "A2 09 CA F0 03 4C 02 85 EA 4C 00 85")
 
     cpu:write(0xFFFC, 0x00)
     cpu:write(0xFFFD, 0x80)
@@ -174,25 +228,25 @@ function love.draw()
     local stckpnt = cpu.__stkp
     local mem = ram.__memory
     if drawMode then
-    -- Print the full memory contents to screen
-    for address = 0, ram.addressableBytes, 256 do
-        for offset = 0, 255, 1 do
-            love.graphics.setColor(255, 255, 255, mem[address + offset] or 0)
-            love.graphics.rectangle("fill", offset * CELLSIZE, math.floor(address / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
+        -- Print the full memory contents to screen
+        for address = 0, ram.addressableBytes, 256 do
+            for offset = 0, 255, 1 do
+                love.graphics.setColor(255, 255, 255, mem[address + offset] or 0)
+                love.graphics.rectangle("fill", offset * CELLSIZE, math.floor(address / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
+            end
         end
-    end
 
-    -- Print the current Program Counter Position
-    local MSB = bit.band(0xFF00, pc)
-    local LSB = bit.band(0x00FF, pc)
-    love.graphics.setColor(255, 0, 0, 255)
-    love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
+        -- Print the current Program Counter Position
+        local MSB = bit.band(0xFF00, pc)
+        local LSB = bit.band(0x00FF, pc)
+        love.graphics.setColor(255, 0, 0, 255)
+        love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
 
-    -- Print the current Stack Pointer Position
-    MSB = bit.band(0xFF00, stckpnt)
-    LSB = bit.band(0x00FF, stckpnt)
-    love.graphics.setColor(0, 255, 0, 255)
-    love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
+        -- Print the current Stack Pointer Position
+        MSB = bit.band(0xFF00, stckpnt)
+        LSB = bit.band(0x00FF, stckpnt)
+        love.graphics.setColor(0, 255, 0, 255)
+        love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
     else
         -- Print pages to screen
         writePageContents(0x00, pc, stckpnt, 0, 0)
