@@ -68,27 +68,55 @@ function love.load()
 
     cpu:write(0xFFFC, 0x00)
     cpu:write(0xFFFD, 0x80)
-
-    local lines, linesIndex = cpu:disassemble(0x8000, 0x801F)
-
-    for i,addr in pairs(linesIndex) do print(lines[addr]) end
 end
+
+local drawMode = false
+local page = 0x80
+local autotick = false
 
 local t = 0
 local d = 0
 function love.update(dt)
     t = t + dt
     if t > CLOCKSPEED then
-        cpu:Clock()
+        if cpu.__timingControlCycles > 0 or autotick then cpu:Clock() end
         t = 0
     end
     if d > 0.2 then
         if love.keyboard.isDown("r") then
             cpu:reset()
+            d = 0
         elseif love.keyboard.isDown("n") then
             cpu:nmi()
+            d = 0
         elseif love.keyboard.isDown("i") then
             cpu:irq()
+            d = 0
+        elseif love.keyboard.isDown("m") then
+            drawMode = not drawMode
+            d = 0
+        elseif love.keyboard.isDown(" ") then
+            if cpu.__timingControlCycles == 0 then cpu:Clock() end
+            d = 0
+        elseif love.keyboard.isDown("up") then
+            page = page + 1
+            if page > 0xFF then page = 0x00 end
+            d = 0
+        elseif love.keyboard.isDown("down") then
+            page = page - 1
+            if page < 0x00 then page = 0xFF end
+            d = 0
+        elseif love.keyboard.isDown("right") then
+            page = page + 16
+            if page > 0xFF then page = 0x00 end
+            d = 0
+        elseif love.keyboard.isDown("left") then
+            page = page - 16
+            if page < 0x00 then page = 0xFF end
+            d = 0
+        elseif love.keyboard.isDown("c") then
+            autotick = not autotick
+            d = 0
         end
     else
         d = d + dt
@@ -96,15 +124,57 @@ function love.update(dt)
 end
 
 local function writeLetter(letter, x, y)
-    love.graphics.setColor(255, 0, 0, 255)
     love.graphics.print(letter, x + 4, y + 1)
 end
+local function writeMonospace(str, x, y)
+    for j = 0, #str - 1, 1 do
+        local c = str:sub(j + 1, j + 1)
+        love.graphics.print(c, x + j * 9, y)
+    end
+end
+
 local CELLSIZE = 2
+
+local function getPageContents(pageHiByte)
+    local mem = ram.__memory
+    local lines = {}
+    local baseAddr = bit.lshift(pageHiByte, 8)
+    for address = 0, 255, 16 do
+        local values = {baseAddr = bit.band(baseAddr + address)}
+        for offset = 0, 15, 1 do
+            values[#values + 1] = {
+                value = mem[bit.band(baseAddr + address) + offset] or 0,
+                address = bit.band(baseAddr + address) + offset
+            }
+        end
+        lines[#lines + 1] = values
+    end
+    return lines
+end
+local function writePageContents(pageHiByte, pc, stckpnt, x, y)
+    local pageContents = getPageContents(pageHiByte)
+    for i = 0, #pageContents - 1, 1 do
+        local values = pageContents[i + 1]
+        love.graphics.setColor(255, 255, 255, 255)
+        writeMonospace(string.format("$%04X", values.baseAddr), x, i * 10 + y)
+        for j = 0, #values - 1, 1 do
+            local value = values[j + 1]
+            if value.address == stckpnt then love.graphics.setColor(0, 255, 0, 255)
+            elseif value.address == pc then love.graphics.setColor(255, 0, 0, 255)
+            else love.graphics.setColor(255, 255, 255, 255) end
+            writeMonospace(string.format("%02X", value.value), j * 25 + 60 + x, i * 10 + y)
+        end
+    end
+end
+
 function love.draw()
     if not cpu or not ram then return end
 
-    -- Print the full memory contents to screen
+    local pc = cpu.__pc
+    local stckpnt = cpu.__stkp
     local mem = ram.__memory
+    if drawMode then
+    -- Print the full memory contents to screen
     for address = 0, ram.addressableBytes, 256 do
         for offset = 0, 255, 1 do
             love.graphics.setColor(255, 255, 255, mem[address + offset] or 0)
@@ -113,40 +183,52 @@ function love.draw()
     end
 
     -- Print the current Program Counter Position
-    local pc = cpu.__pc
     local MSB = bit.band(0xFF00, pc)
     local LSB = bit.band(0x00FF, pc)
     love.graphics.setColor(255, 0, 0, 255)
     love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
-    writeLetter(string.format("PC$%04X", pc), 100, 512)
 
     -- Print the current Stack Pointer Position
-    local stckpnt = cpu.__stkp
     MSB = bit.band(0xFF00, stckpnt)
     LSB = bit.band(0x00FF, stckpnt)
     love.graphics.setColor(0, 255, 0, 255)
     love.graphics.rectangle("fill", LSB * CELLSIZE, math.floor(MSB / 256) * CELLSIZE, CELLSIZE, CELLSIZE)
-    writeLetter(string.format("StkPnt$%04X", stckpnt), 200, 512)
+    else
+        -- Print pages to screen
+        writePageContents(0x00, pc, stckpnt, 0, 0)
+        writePageContents(page, pc, stckpnt, 0, 180)
+
+        -- Print current instruction
+        local lines, lineIndex = cpu:disassemble(pc - 8, pc + 8)
+        for index, addr in pairs(lineIndex) do
+            if addr == pc then love.graphics.setColor(255, 0, 0, 255)
+            else love.graphics.setColor(255, 255, 255, 255) end
+            writeMonospace(lines[addr], 0, 360 + (index - 1) * 10)
+        end
+    end
+
+    love.graphics.setColor(255, 0, 0, 255)
+    writeLetter(string.format("PC$%04X", pc), 150, 512)
+    writeLetter(string.format("%02X (%03d)", mem[pc] or 0, mem[pc] or 0), 150, 522)
+    writeLetter(string.format("StkPtr$%04X", stckpnt), 250, 512)
+    writeLetter(string.format("%02X (%03d)", mem[stckpnt] or 0, mem[stckpnt] or 0), 250, 522)
 
     -- Print the registers
     -- A
-    love.graphics.setColor(255, 255, 255, cpu.__A)
-    love.graphics.rectangle("fill", 0, 512, 16, 16)
-    writeLetter("A", 0, 512)
+    writeMonospace(string.format("A %02X (%03d)", cpu.__A, cpu.__A), 3, 512)
     -- X
-    love.graphics.setColor(255, 255, 255, cpu.__X)
-    love.graphics.rectangle("fill", 16, 512, 16, 16)
-    writeLetter("X", 16, 512)
+    writeMonospace(string.format("X %02X (%03d)", cpu.__X, cpu.__X), 3, 522)
     -- Y
-    love.graphics.setColor(255, 255, 255, cpu.__Y)
-    love.graphics.rectangle("fill", 32, 512, 16, 16)
-    writeLetter("Y", 32, 512)
+    writeMonospace(string.format("Y %02X (%03d)", cpu.__Y, cpu.__Y), 3, 532)
 
     -- Print status flags
     local flags = {"C", "Z", "I", "D", "B", "U", "V", "N"}
     for index, flag in pairs(flags) do
-        love.graphics.setColor(255, 255, 255, cpu:GetFlag(flag) * 255)
-        love.graphics.rectangle("fill", 512 - (16 * index), 512, 16, 16)
+        if cpu:GetFlag(flag) == 1 then
+            love.graphics.setColor(0, 255, 0)
+        else
+            love.graphics.setColor(255, 0, 0)
+        end
         writeLetter(flag, 512 - (16 * index), 512)
     end
 end
