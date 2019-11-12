@@ -113,12 +113,12 @@ function love.load()
         LDX #9
         DEX
         BEQ skipjmp
-        JMP $8502
+        JMP $8402
         skipjmp
         NOP
         JMP $8500
     ]]
-    writeProgramToMemory(0x8400, "A2 09 CA F0 03 4C 02 85 EA 4C 00 85")
+    writeProgramToMemory(0x8400, "A2 09 CA F0 03 4C 02 84 EA 4C 00 85")
 
     cpu:write(0xFFFC, 0x00)
     cpu:write(0xFFFD, 0x80)
@@ -253,7 +253,7 @@ function love.draw()
         writePageContents(page, pc, stckpnt, 0, 180)
 
         -- Print current instruction
-        local lines, lineIndex = cpu:disassemble(pc - 8, pc + 8)
+        local lines, lineIndex = cpu:disassemble(pc, pc + 16)
         for index, addr in pairs(lineIndex) do
             if addr == pc then love.graphics.setColor(255, 0, 0, 255)
             else love.graphics.setColor(255, 255, 255, 255) end
