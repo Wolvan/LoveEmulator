@@ -37,7 +37,7 @@ MOS6502 = GenericCPU:new({
     REL = function(self)
         local addrRel = bit.band(0x00FF, self:read(self.__pc))
         self.__pc = self.__pc + 1
-        if bit.band(addrRel, 0x80) then
+        if bit.band(addrRel, 0x80) ~= 0 then
             addrRel = -128 + addrRel - 128
         end
         return addrRel, 0
@@ -690,9 +690,8 @@ MOS6502 = GenericCPU:new({
             local line_addr = addr
 
             local lookup = self.__opcodes[self:read(addr, true) + 1]
-            addr = addr + 1
-
             local str = string.format("$%04X: %s ", addr, lookup.mnemonic)
+            addr = addr + 1
 
             if lookup.addrMode == "IMP" then
                 str = str.."{IMP}"
@@ -753,7 +752,7 @@ MOS6502 = GenericCPU:new({
                 local val = self:read(addr, true)
                 local addrRel =  bit.band(0x00FF, val)
                 addr = addr + 1
-                if bit.band(addrRel, 0x80) then
+                if bit.band(addrRel, 0x80) ~= 0 then
                     addrRel = -128 + addrRel - 128
                 end
                 str = str..string.format("$%02X [$%04X] {REL}", val, addr + addrRel)
